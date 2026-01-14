@@ -3,14 +3,17 @@
 WITH RECURSIVE
 
 -- 1) SKU base
-sku_base AS (
-  SELECT
+sku_base AS(
+  SELECT 
     sd.sku_id,
     sd.unit_cost,
     sd.brand,
     sd.supplier,
-    sd.category
+    sd.category,
+    asp.avg_selling_price_2025
   FROM `Inventory_Projection_Dashboard.sku_data` sd
+  LEFT JOIN `Inventory_Projection_Dashboard.avg_selling_prices_2025` asp
+    ON sd.sku_id = asp.sku_id
 ),
 
 -- 2) 2025 sales → daily velocity
@@ -25,9 +28,12 @@ sales_2025 AS (
 
 sales_velocity AS (
   SELECT
-    sku_id,
-    SAFE_DIVIDE(units_sold_2025, 365) AS daily_sales_velocity
-  FROM sales_2025
+    s2.sku_id,
+    SAFE_DIVIDE(units_sold_2025, 365) AS daily_sales_velocity,
+    SAFE_DIVIDE(units_sold_2025, 365) * sb.unit_cost AS daily_cogs
+  FROM sales_2025 s2
+  LEFT JOIN sku_base sb
+    ON s2.sku_id = sb.sku_id
 ),
 
 -- 3) Initial stock snapshot (day 1)
@@ -56,7 +62,41 @@ orders_weekly AS (
   GROUP BY sku_id, week_start
 ),
 
--- 6) SKU × ISO week inputs (small table: ~53 rows per SKU)
+-- 6) Cumulative revenue and ABC analysis
+revenue_calculation AS (
+  SELECT
+    s2025.sku_id,
+    s2025.units_sold_2025 * sb.avg_selling_price_2025 AS revenue,
+    SUM(s2025.units_sold_2025 * sb.avg_selling_price_2025) OVER () AS total_revenue
+  FROM sales_2025 s2025
+  LEFT JOIN sku_base sb
+    ON s2025.sku_id = sb.sku_id
+),
+
+cumulative_rev AS (
+  SELECT
+    sku_id,
+    SAFE_DIVIDE(revenue, total_revenue) AS revenue_contribution,
+    SUM(SAFE_DIVIDE(revenue, total_revenue)) OVER (
+      ORDER BY revenue DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_contribution
+  FROM revenue_calculation
+),
+
+abc AS (
+  SELECT
+    sku_id,
+    cumulative_contribution,
+    CASE
+      WHEN cumulative_contribution <= 0.4 THEN 'A'
+      WHEN cumulative_contribution <= 0.8 THEN 'B'
+      ELSE 'C'
+    END AS class
+  FROM cumulative_rev
+),
+
+-- 7) SKU × ISO week inputs (small table: ~53 rows per SKU)
 weekly_inputs AS (
   SELECT
     sb.sku_id,
@@ -66,7 +106,6 @@ weekly_inputs AS (
       ORDER BY cw.week_start
     ) AS rn,
 
-    -- Put snapshot stock into the matching ISO week bucket, else 0
     COALESCE(
       CASE
         WHEN DATE_TRUNC(ins.snapshot_date, ISOWEEK) = cw.week_start THEN ins.available_qty
@@ -76,11 +115,9 @@ weekly_inputs AS (
     ) AS initial_stock_week,
 
     COALESCE(ow.ordered_qty_week, 0) AS ordered_qty_week,
-
-    -- Weekly demand proxy based on daily velocity
     COALESCE(sv.daily_sales_velocity, 0) * 7 AS demand_week,
+    COALESCE(sv.daily_cogs, 0) * 7 AS cogs_week,
 
-    -- Helpful ISO week fields for reporting (KW label)
     EXTRACT(ISOYEAR FROM cw.week_start) AS iso_year,
     EXTRACT(ISOWEEK FROM cw.week_start) AS iso_week,
     FORMAT_DATE('%G-W%V', cw.week_start) AS iso_week_label
@@ -95,9 +132,9 @@ weekly_inputs AS (
     ON sv.sku_id = sb.sku_id
 ),
 
--- 7) Recursive weekly projection (TRUE floor: never below 0; state carries week to week)
+-- 8) Recursive weekly projection (TRUE floor: never below 0)
 weekly_projection AS (
-  -- Anchor: first ISO week per SKU in the generated calendar range
+  -- Anchor
   SELECT
     sku_id,
     week_start,
@@ -114,7 +151,7 @@ weekly_projection AS (
 
   UNION ALL
 
-  -- Step: week n depends on week n-1 projection
+  -- Recursive step
   SELECT
     wi.sku_id,
     wi.week_start,
@@ -127,16 +164,57 @@ weekly_projection AS (
     wi.demand_week,
     GREATEST(
       0,
-      COALESCE(wp.inventory_projection, 0)
-      + COALESCE(wi.initial_stock_week, 0)
-      + COALESCE(wi.ordered_qty_week, 0)
-      - COALESCE(wi.demand_week, 0)
+      wp.inventory_projection
+      + wi.initial_stock_week
+      + wi.ordered_qty_week
+      - wi.demand_week
     ) AS inventory_projection
   FROM weekly_projection wp
   JOIN weekly_inputs wi
     ON wi.sku_id = wp.sku_id
    AND wi.rn = wp.rn + 1
+),
+
+
+stock_flag AS (
+    SELECT 
+    wp.sku_id,
+    wp.week_start,
+    CASE WHEN wp.inventory_projection > 0 THEN 1 ELSE 0 END AS stock_flag
+
+    FROM weekly_projection wp),
+
+reach_by_week AS (
+  SELECT
+    sf.sku_id,
+    sf.week_start,
+    sf.stock_flag,
+    CASE WHEN(
+    AVG(sf.stock_flag) OVER (
+      PARTITION BY sf.sku_id
+      ORDER BY sf.week_start
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+      ) ) < 1 THEN 0 ELSE 1 END AS weeks_reach
+  FROM stock_flag sf),
+
+stock_reach_projection AS(
+  SELECT
+    rb.sku_id,
+    rb.week_start,
+    rb.stock_flag,
+    SUM(rb.weeks_reach) OVER (
+      PARTITION BY rb.sku_id
+      
+    ) AS reach_projection_weeks
+
+  FROM reach_by_week rb
+
+
 )
+  
+  
+
+
 
 SELECT 
   wp.sku_id,
@@ -146,25 +224,63 @@ SELECT
   sb.brand,
   wp.iso_year AS calendar_year,
   wp.iso_week_label AS calendar_week,
-  CAST(wp.inventory_projection AS int64) AS inventory_projection,
-  CAST(sb.unit_cost * wp.inventory_projection AS int64) AS inventory_value,
-  CASE WHEN wp.inventory_projection > 0 THEN 1 ELSE 0 END AS stock_flag,
-  CASE WHEN LAG(wp.inventory_projection) OVER (
-      PARTITION BY wp.sku_id
-      ORDER BY wp.week_start
-    ) > 0
-    AND wp.inventory_projection = 0
-  THEN wp.week_start ELSE null END AS stockout_start_flag,
-  CASE WHEN sv.daily_sales_velocity = 0 THEN 'Dead stock'
-       WHEN sv.daily_sales_velocity <= 1 THEN 'Slow moving'
-       WHEN sv.daily_sales_velocity <= 5 THEN 'Medium moving'
-       ELSE 'Fast moving' END AS sales_velocity
+  abc.class AS class,
+  ow.ordered_qty_week AS incoming_units,
+  CAST(wp.inventory_projection AS INT64) AS inventory_projection,
+  CAST(sb.unit_cost * wp.inventory_projection AS INT64) AS inventory_value,
+
+  sr.reach_projection_weeks,
+
+  CASE 
+    WHEN sr.reach_projection_weeks <= 8 THEN '🔴 Critical'
+    WHEN sr.reach_projection_weeks <= 12 THEN '🟠 At risk'
+    WHEN sr.reach_projection_weeks <= 16 THEN '🟡 Watch'
+    ELSE '🟢 No risk'END AS stockout_risk
+
+
+,
+
+  sr.stock_flag,
+  --SERVICE LEVEL CALCULATION FOR DE NEXT 6 MONTHS / 24 WEEKS
+  SUM(sr.stock_flag) OVER (
+    PARTITION BY wp.sku_id
+    ORDER BY wp.week_start
+    ROWS BETWEEN 1 FOLLOWING AND 24 FOLLOWING
+  )/24 AS projected_service_level,
+  
+  sv.daily_sales_velocity,
+
+
+  CASE
+    WHEN sv.daily_sales_velocity = 0 THEN 'Dead stock'
+    WHEN sv.daily_sales_velocity <= 1 THEN 'Slow moving'
+    WHEN sv.daily_sales_velocity <= 5 THEN 'Medium moving'
+    ELSE 'Fast moving'
+  END AS sales_velocity,
+
+  
 
 FROM weekly_projection wp
+LEFT JOIN sku_base sb
+  ON wp.sku_id = sb.sku_id
+LEFT JOIN sales_velocity sv
+  ON wp.sku_id = sv.sku_id
+LEFT JOIN abc
+  ON wp.sku_id = abc.sku_id
+LEFT JOIN stock_reach_projection sr
+  ON wp.sku_id = sr.sku_id 
+  AND wp.week_start = sr.week_start
+LEFT JOIN orders_weekly ow
+  ON wp.sku_id = ow.sku_id 
+  AND wp.week_start = ow.week_start
+LEFT JOIN weekly_inputs wi
+  ON wp.sku_id = wi.sku_id 
+  AND wp.week_start = wi.week_start
 
-LEFT JOIN sku_base sb ON wp.sku_id = sb.sku_id
-LEFT JOIN sales_velocity sv ON wp.sku_id = sv.sku_id
+
+-- IMPORTANT: join weekly_inputs at the same grain (sku_id + rn or week_start)
 
 
+ORDER BY wp.sku_id, wp.week_start
 
-ORDER BY sku_id, week_start;
+;
