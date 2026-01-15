@@ -1,0 +1,254 @@
+-- Weekly (ISO calendar week / KW) inventory projection with TRUE stock floor (BigQuery)
+
+WITH RECURSIVE
+
+-- 1) SKU base (small dim)
+sku_base AS (
+  SELECT
+    sd.sku_id,
+    sd.unit_cost,
+    sd.brand,
+    sd.supplier,
+    sd.category,
+    asp.avg_selling_price_2025
+  FROM `Inventory_Projection_Dashboard.sku_data` sd
+  LEFT JOIN `Inventory_Projection_Dashboard.avg_selling_prices_2025` asp
+    USING (sku_id)
+),
+
+-- 2) 2025 sales → velocity (aggregate once)
+sales_2025 AS (
+  SELECT
+    sku_id,
+    SUM(units_sold) AS units_sold_2025
+  FROM `Inventory_Projection_Dashboard.daily_sales_history_2022_2025`
+  WHERE date >= DATE '2025-01-01'
+  GROUP BY sku_id
+),
+
+sales_velocity AS (
+  SELECT
+    s.sku_id,
+    SAFE_DIVIDE(s.units_sold_2025, 365) AS daily_sales_velocity,
+    SAFE_MULTIPLY(SAFE_DIVIDE(s.units_sold_2025, 365), sb.unit_cost) AS daily_cogs
+  FROM sales_2025 s
+  JOIN sku_base sb USING (sku_id)
+),
+
+-- 3) Initial stock snapshot (assumed day-1 snapshot per SKU)
+initial_stock AS (
+  SELECT
+    sku_id,
+    available_qty
+  FROM `Inventory_Projection_Dashboard.inventory_snapshot_2026_01_01`
+),
+
+-- 4) ISO calendar weeks (53-ish rows total)
+calendar_weeks AS (
+  SELECT
+    week_start
+  FROM (
+    SELECT DISTINCT DATE_TRUNC(d, ISOWEEK) AS week_start
+    FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2026-01-01', DATE '2026-12-31')) d
+  )
+),
+
+-- 5) Orders aggregated by ISO week
+orders_weekly AS (
+  SELECT
+    sku_id,
+    DATE_TRUNC(expected_delivery_date, ISOWEEK) AS week_start,
+    SUM(ordered_qty) AS ordered_qty_week
+  FROM `Inventory_Projection_Dashboard.incoming_purchase_orders_2026`
+  GROUP BY sku_id, week_start
+),
+
+-- 6) ABC (compute revenue once, proper rank)
+revenue_by_sku AS (
+  SELECT
+    s.sku_id,
+    SAFE_MULTIPLY(s.units_sold_2025, sb.avg_selling_price_2025) AS revenue
+  FROM sales_2025 s
+  JOIN sku_base sb USING (sku_id)
+),
+
+abc AS (
+  SELECT
+    sku_id,
+    cumulative_contribution,
+    CASE
+      WHEN cumulative_contribution <= 0.4 THEN 'A'
+      WHEN cumulative_contribution <= 0.8 THEN 'B'
+      ELSE 'C'
+    END AS class,
+    revenue_rank
+  FROM (
+    SELECT
+      sku_id,
+      revenue,
+      DENSE_RANK() OVER (ORDER BY revenue DESC) AS revenue_rank,
+      SUM(revenue) OVER () AS total_revenue,
+      SUM(revenue) OVER (ORDER BY revenue DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+        / NULLIF(SUM(revenue) OVER (), 0) AS cumulative_contribution
+    FROM revenue_by_sku
+  )
+),
+
+-- 7) Weekly inputs at SKU x week grain
+weekly_inputs AS (
+  SELECT
+    sb.sku_id,
+    cw.week_start,
+    ROW_NUMBER() OVER (PARTITION BY sb.sku_id ORDER BY cw.week_start) AS rn,
+
+    -- put snapshot only in the first week row
+    IF(
+      ROW_NUMBER() OVER (PARTITION BY sb.sku_id ORDER BY cw.week_start) = 1,
+      COALESCE(ins.available_qty, 0),
+      0
+    ) AS initial_stock_week,
+
+    COALESCE(ow.ordered_qty_week, 0) AS ordered_qty_week,
+    COALESCE(sv.daily_sales_velocity, 0) * 7 AS demand_week,
+
+    EXTRACT(ISOYEAR FROM cw.week_start) AS iso_year,
+    EXTRACT(ISOWEEK FROM cw.week_start) AS iso_week,
+    FORMAT_DATE('%G-W%V', cw.week_start) AS iso_week_label
+  FROM sku_base sb
+  CROSS JOIN calendar_weeks cw
+  LEFT JOIN initial_stock ins USING (sku_id)
+  LEFT JOIN orders_weekly ow
+    ON ow.sku_id = sb.sku_id AND ow.week_start = cw.week_start
+  LEFT JOIN sales_velocity sv USING (sku_id)
+),
+
+-- 8) Recursive weekly projection (TRUE floor: never below 0)
+weekly_projection AS (
+  -- Anchor
+  SELECT
+    sku_id,
+    week_start,
+    rn,
+    iso_year,
+    iso_week,
+    iso_week_label,
+    initial_stock_week,
+    ordered_qty_week,
+    demand_week,
+    GREATEST(0, initial_stock_week + ordered_qty_week - demand_week) AS inventory_projection
+  FROM weekly_inputs
+  WHERE rn = 1
+
+  UNION ALL
+
+  -- Recursive step
+  SELECT
+    wi.sku_id,
+    wi.week_start,
+    wi.rn,
+    wi.iso_year,
+    wi.iso_week,
+    wi.iso_week_label,
+    wi.initial_stock_week,
+    wi.ordered_qty_week,
+    wi.demand_week,
+    GREATEST(
+      0,
+      wp.inventory_projection + wi.initial_stock_week + wi.ordered_qty_week - wi.demand_week
+    ) AS inventory_projection
+  FROM weekly_projection wp
+  JOIN weekly_inputs wi
+    ON wi.sku_id = wp.sku_id
+   AND wi.rn = wp.rn + 1
+),
+
+-- 9) Per-SKU incoming totals (computed once)
+incoming_totals AS (
+  SELECT
+    sku_id,
+    SUM(ordered_qty_week) AS total_incoming_stock
+  FROM orders_weekly
+  GROUP BY sku_id
+),
+
+-- 10) Reach + service level without extra CTE chain
+final_enriched AS (
+  SELECT
+    wp.*,
+    IF(wp.inventory_projection > 0, 1, 0) AS stock_flag,
+
+    -- projected service level next 24 weeks
+    ROUND(
+      AVG(IF(wp.inventory_projection > 0, 1.0, 0.0)) OVER (
+        PARTITION BY wp.sku_id
+        ORDER BY wp.week_start
+        ROWS BETWEEN 1 FOLLOWING AND 24 FOLLOWING
+      ),
+      3
+    ) AS projected_service_level,
+
+    -- first week rn where it hits 0 (per sku)
+    MIN(IF(wp.inventory_projection = 0, wp.rn, NULL)) OVER (PARTITION BY wp.sku_id) AS first_zero_rn,
+
+    COUNT(*) OVER (PARTITION BY wp.sku_id) AS total_weeks
+  FROM weekly_projection wp
+)
+
+SELECT
+  f.sku_id,
+  a.revenue_rank,
+  f.week_start,
+  sb.category,
+  sb.supplier,
+  sb.brand,
+  f.iso_year AS calendar_year,
+  f.iso_week_label AS calendar_week,
+  a.class AS class,
+
+  f.ordered_qty_week AS incoming_units_week,
+  COALESCE(it.total_incoming_stock, 0) AS total_incoming_stock,
+  ROUND(COALESCE(it.total_incoming_stock, 0) * sb.unit_cost, 2) AS total_incoming_value,
+
+  CAST(f.inventory_projection AS INT64) AS inventory_projection,
+  CAST(sb.unit_cost * f.inventory_projection AS INT64) AS inventory_value,
+
+  -- reach in weeks: (first zero week - 1) else total weeks
+  CASE
+    WHEN f.first_zero_rn IS NULL THEN f.total_weeks
+    ELSE GREATEST(f.first_zero_rn - 1, 0)
+  END AS reach_projection_weeks,
+
+  CASE
+    WHEN (CASE WHEN f.first_zero_rn IS NULL THEN f.total_weeks ELSE GREATEST(f.first_zero_rn - 1, 0) END) <= 8 THEN '🔴 Critical'
+    WHEN (CASE WHEN f.first_zero_rn IS NULL THEN f.total_weeks ELSE GREATEST(f.first_zero_rn - 1, 0) END) <= 12 THEN '🟠 At risk'
+    WHEN (CASE WHEN f.first_zero_rn IS NULL THEN f.total_weeks ELSE GREATEST(f.first_zero_rn - 1, 0) END) <= 16 THEN '🟡 Watch'
+    ELSE '🟢 No risk'
+  END AS stockout_risk,
+
+  f.stock_flag,
+  f.projected_service_level,
+  ROUND(f.demand_week, 2) AS demand_week,
+
+  -- first date stockout (week_start of first zero)
+  MIN(IF(f.inventory_projection = 0, f.week_start, NULL)) OVER (PARTITION BY f.sku_id) AS first_date_stockout,
+
+  CASE
+    WHEN sv.daily_sales_velocity = 0 THEN '🔴 Dead stock'
+    WHEN sv.daily_sales_velocity <= 1 THEN '🟠 Slow moving'
+    WHEN sv.daily_sales_velocity <= 5 THEN '🟡 Medium moving'
+    ELSE '🟢 Fast moving'
+  END AS sales_velocity,
+
+  CASE
+    WHEN sv.daily_sales_velocity = 0 THEN '1- Dead stock'
+    WHEN sv.daily_sales_velocity <= 1 THEN '2- Slow moving'
+    WHEN sv.daily_sales_velocity <= 5 THEN '3- Medium moving'
+    ELSE '4- Fast moving'
+  END AS sorted_sales_velocity
+
+FROM final_enriched f
+JOIN sku_base sb USING (sku_id)
+LEFT JOIN sales_velocity sv USING (sku_id)
+LEFT JOIN abc a USING (sku_id)
+LEFT JOIN incoming_totals it USING (sku_id)
+ORDER BY f.sku_id, f.week_start;
