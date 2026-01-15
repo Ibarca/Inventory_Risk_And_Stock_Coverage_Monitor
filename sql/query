@@ -80,7 +80,10 @@ cumulative_rev AS (
     SUM(SAFE_DIVIDE(revenue, total_revenue)) OVER (
       ORDER BY revenue DESC
       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    ) AS cumulative_contribution
+    ) AS cumulative_contribution,
+    COUNT(*) OVER( ORDER BY revenue DESC) AS revenue_rank
+
+    
   FROM revenue_calculation
 ),
 
@@ -206,7 +209,7 @@ stock_reach_projection AS(
       PARTITION BY rb.sku_id
       
     ) AS reach_projection_weeks
-
+    
   FROM reach_by_week rb
 
 
@@ -218,6 +221,7 @@ stock_reach_projection AS(
 
 SELECT 
   wp.sku_id,
+  cr.revenue_rank,
   wp.week_start,
   sb.category,
   sb.supplier,
@@ -225,11 +229,15 @@ SELECT
   wp.iso_year AS calendar_year,
   wp.iso_week_label AS calendar_week,
   abc.class AS class,
-  ow.ordered_qty_week AS incoming_units,
+  wi.ordered_qty_week AS incoming_units_week,
+  SUM(wi.ordered_qty_week) OVER (partition by wp.sku_id) AS total_incoming_stock,
+  ROUND(SUM(wi.ordered_qty_week * sb.unit_cost) OVER( PARTITION BY wp.sku_id), 2) AS total_incoming_value,
+  
   CAST(wp.inventory_projection AS INT64) AS inventory_projection,
   CAST(sb.unit_cost * wp.inventory_projection AS INT64) AS inventory_value,
 
   sr.reach_projection_weeks,
+
 
   CASE 
     WHEN sr.reach_projection_weeks <= 8 THEN '🔴 Critical'
@@ -242,21 +250,33 @@ SELECT
 
   sr.stock_flag,
   --SERVICE LEVEL CALCULATION FOR DE NEXT 6 MONTHS / 24 WEEKS
+  ROUND(
   SUM(sr.stock_flag) OVER (
     PARTITION BY wp.sku_id
     ORDER BY wp.week_start
     ROWS BETWEEN 1 FOLLOWING AND 24 FOLLOWING
-  )/24 AS projected_service_level,
+  )/24
+  , 3) AS projected_service_level,
   
-  sv.daily_sales_velocity,
+  ROUND(wi.demand_week,2) AS demand_week,
 
+  --FIRST WEEK OOS
+  DATE_ADD((MIN(wi.week_start) OVER (PARTITION BY wp.sku_id))
+  , INTERVAL  sr.reach_projection_weeks WEEK) AS first_date_stockout,
+ 
 
   CASE
-    WHEN sv.daily_sales_velocity = 0 THEN 'Dead stock'
-    WHEN sv.daily_sales_velocity <= 1 THEN 'Slow moving'
-    WHEN sv.daily_sales_velocity <= 5 THEN 'Medium moving'
-    ELSE 'Fast moving'
+    WHEN sv.daily_sales_velocity = 0 THEN '🔴 Dead stock'
+    WHEN sv.daily_sales_velocity <= 1 THEN '🟠 Slow moving'
+    WHEN sv.daily_sales_velocity <= 5 THEN '🟡 Medium moving'
+    ELSE '🟢 Fast moving'
   END AS sales_velocity,
+  CASE
+    WHEN sv.daily_sales_velocity = 0 THEN '1- Dead stock'
+    WHEN sv.daily_sales_velocity <= 1 THEN '2- Slow moving'
+    WHEN sv.daily_sales_velocity <= 5 THEN '3- Medium moving'
+    ELSE '4- Fast moving'
+  END AS sorted_sales_velocity,
 
   
 
@@ -276,11 +296,13 @@ LEFT JOIN orders_weekly ow
 LEFT JOIN weekly_inputs wi
   ON wp.sku_id = wi.sku_id 
   AND wp.week_start = wi.week_start
+LEFT JOIN cumulative_rev AS cr
+  ON wp.sku_id = cr.sku_id
 
 
 -- IMPORTANT: join weekly_inputs at the same grain (sku_id + rn or week_start)
 
-
+--WHERE wi.sku_id = 900017
 ORDER BY wp.sku_id, wp.week_start
 
 ;
