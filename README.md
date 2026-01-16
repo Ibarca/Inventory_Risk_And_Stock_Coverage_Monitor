@@ -6,8 +6,8 @@ This repository contains a production-ready BigQuery SQL query that powers an en
 
 The dashboard is built for Category Management, Supply Chain, and Operations teams, enabling scalable, weekly, SKU-level decision making based on consistent and transparent data logic.
 
+<img width="1284" height="709" alt="Screenshot 2026-01-16 at 12 19 59" src="https://github.com/user-attachments/assets/719e66c6-4315-49d1-bb89-27cb622f8d9c" />
 
-Uploaded image
 
 ---
 
