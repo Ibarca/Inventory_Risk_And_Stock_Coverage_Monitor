@@ -8,22 +8,23 @@ The dashboard is built for Category Management, Supply Chain, and Operations tea
 
 <img width="1284" height="709" alt="Screenshot 2026-01-16 at 12 19 59" src="https://github.com/user-attachments/assets/719e66c6-4315-49d1-bb89-27cb622f8d9c" />
 
-
 ---
 
 ## 📌 What this project does
 
-The query generates a **weekly ISO-calendar inventory projection** per SKU, applying a **true stock floor (never below zero)** and enriching the results with:
+The query produces a weekly, ISO-calendar inventory projection at SKU level, applying a true stock floor that never allows inventory to drop below zero. The results are enriched with multiple analytical layers designed to support proactive inventory management:
 
-• Projected inventory units and value over time
-• Incoming inventory visibility and valuation
-• Demand projections based on historical velocity
-• Projected service level over a forward-looking horizon
-• First expected stockout date and reach in weeks
-• ABC classification based on revenue contribution
-• Stockout risk and sales velocity segmentation
+• Projected inventory units and value over time – enabling early detection of upcoming stockouts and timely corrective actions
+• Inbound inventory visibility and valuation – providing an immediate overview of open purchase orders per SKU, both in units and monetary value
+• Demand projections based on historical sales velocity – demand is derived from average sales velocities from the previous year; this logic can easily be replaced by more advanced forecasting techniques, which are explored in a separate project
+• Projected service level over a forward-looking horizon – the dashboard displays the expected service level over the next six months based on projected inventory availability
+• First expected stockout date and reach in weeks – allowing management to assess the severity and urgency of potential stockouts and respond in time
+• ABC classification based on revenue contribution – SKUs are ranked by prior-year revenue and segmented using Pareto-based ABC classification to support effective prioritization
+• Stockout risk and sales velocity segmentation – SKUs are grouped into clear risk and velocity buckets, making it easy to identify items at stockout risk as well as dead or slow-moving inventory
 
-The output is consumed directly by a BI layer (for example Looker Studio or Google Sheets) to render the dashboard shown above.
+All transformations and calculations are executed in BigQuery SQL, producing a dataset that is directly ready for consumption by a BI layer. Metric names are standardized and simplified in the visualization layer, while charts and tables are arranged following core dashboard design principles to ensure clarity and usability.
+
+The resulting dataset is consumed directly by Looker Studio, which render the inventory projection dashboard shown above.
 
 ---
 
