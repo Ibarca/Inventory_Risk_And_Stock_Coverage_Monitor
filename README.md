@@ -14,15 +14,15 @@ The dashboard is built for Category Management, Supply Chain, and Operations tea
 
 The query produces a weekly, ISO-calendar inventory projection at SKU level, applying a true stock floor that never allows inventory to drop below zero. The results are enriched with multiple analytical layers designed to support proactive inventory management:
 
-• Projected inventory units and value over time – enabling early detection of upcoming stockouts and timely corrective actions
+• Projected inventory units and value over time – Enabling early detection of upcoming stockouts and timely corrective actions
 
-• Inbound inventory visibility and valuation – providing an immediate overview of open purchase orders per SKU, both in units and monetary value
+• Inbound inventory visibility and valuation – Providing an immediate overview of open purchase orders per SKU, both in units and monetary value
 
-• Demand projections based on historical sales velocity – demand is derived from average sales velocities from the previous year; this logic can easily be replaced by more advanced forecasting techniques, which are explored in a separate project
+• Demand projections based on historical sales velocity – Demand is derived from average sales velocities from the previous year; this logic can easily be replaced by more advanced forecasting techniques, which are explored in a separate project
 
-• Projected service level over a forward-looking horizon – the dashboard displays the expected service level over the next six months based on projected inventory availability
+• Projected service level over a forward-looking horizon – The dashboard displays the expected service level over the next six months based on projected inventory availability
 
-• First expected stockout date and reach in weeks – allowing management to assess the severity and urgency of potential stockouts and respond in time
+• First expected stockout date and reach in weeks – Allowing management to assess the severity and urgency of potential stockouts and respond in time
 
 • ABC classification based on revenue contribution – SKUs are ranked by prior-year revenue and segmented using Pareto-based ABC classification to support effective prioritization
 
