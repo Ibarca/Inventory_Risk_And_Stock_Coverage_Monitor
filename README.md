@@ -70,3 +70,57 @@ The query integrates the following datasets:
 ![Data_sources](https://github.com/user-attachments/assets/4ef4e223-1a91-4783-906f-9d6234a7854e)
 
 
+⚙️ Technical approach
+
+• Recursive CTEs are used to model true week-over-week inventory evolution
+
+Inventory is a stateful metric: the stock you have in week t depends on the stock remaining in week t–1. That dependency is why the query uses a recursive CTE (weekly_projection).
+
+In my logic:
+• Anchor week (rn = 1): starts from the initial stock snapshot (inventory_snapshot_2026_01_01) plus inbound for that week minus demand for that week, with a true floor at 0 using GREATEST(0, …).
+• Recursive step (rn = previous rn + 1): each next week uses the previous week’s inventory_projection as the base, then applies weekly inbound and weekly demand again.
+
+This prevents common mistakes like treating each week independently or allowing negative stock, and it produces a realistic inventory trajectory that behaves like real operations.
+
+![F465A7F4-20AC-4429-ACEF-43D01E9C9DE6](https://github.com/user-attachments/assets/f9d08216-bc8b-4cc8-b8cd-94f92d42099f)
+
+
+• Window functions support ranking, service level calculation, and reach logic
+• ISO calendar logic ensures consistent weekly alignment
+• All heavy transformations run in SQL to avoid BI-layer complexity
+
+This approach keeps business logic centralized, version-controlled, and easy to audit.
+
+📈 Output & BI integration
+
+The final output is a BI-ready table with standardized metric names and clear business labels. It can be directly connected to tools such as:
+
+• Looker Studio
+• Google Sheets
+• Other BI or reporting layers
+
+The dashboard built on top of this dataset follows core dashboard design principles, combining KPIs, tables, and time-series views into an intuitive layout for operational decision making.
+
+🗂️ Repository structure
+
+/sql
+inventory_projection.sql
+
+/docs
+dashboard_screenshot.png
+
+README.md
+
+🧪 Data note
+
+The data used in this repository may be synthetic or anonymized. The goal of this project is to demonstrate analytical design, SQL quality, and real-world inventory logic, not to expose proprietary information.
+
+👥 Intended audience
+
+• Category Managers
+• Supply Chain and Inventory Planners
+• BI and Data Analytics teams
+• Hiring managers reviewing analytics portfolios
+
+This project represents a realistic, production-style inventory analytics use case, suitable for both operational environments and professional data portfolios.
+
