@@ -100,6 +100,11 @@ They also power the projected service level, calculated as a forward-looking ava
 
 Finally, window functions support the reach and stockout logic by identifying the first projected stockout week and date, counting total projected weeks, and deriving the number of weeks until stockout. Together, these metrics provide a clear, actionable view of urgency and inventory risk.
 
+<img width="845" height="349" alt="image" src="https://github.com/user-attachments/assets/c874d602-b0c2-45e3-b51d-845e8fd56ea2" />
+
+
+
+
 • ISO calendar logic ensures consistent weekly alignment
 
 Using ISO calendar logic is critical for ensuring that all components of the inventory projection are perfectly aligned on the same weekly time axis. In this project, every time-based calculation is standardized to ISO weeks so that demand, inbound supply, and inventory balances are evaluated consistently.
