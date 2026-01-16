@@ -37,11 +37,17 @@ The resulting dataset is consumed directly by Looker Studio, which render the in
 ## 🧠 Business use cases
 
 • Identify SKUs at risk of stockout weeks in advance
+
 • Prioritize replenishment decisions using ABC logic
+
 • Monitor projected service levels at SKU and category level
+
 • Evaluate the impact of incoming purchase orders on future availability
+
 • Track inventory value evolution over time
+
 • Segment assortment by sales velocity and risk
+
 
 This logic has been implemented and refined in real business environments and is designed to handle **thousands of SKUs efficiently**.
 
