@@ -1,4 +1,4 @@
-# Inventory Projection Dashboard – BigQuery SQL
+# Inventory Projection Dashboard – ( BigQuery + SQL + Looker Studio)
 
 During my experience working across multiple category management teams, I repeatedly observed a lack of reliable, forward-looking inventory visibility at SKU level. This often resulted in avoidable stockouts caused not by missing data, but by the absence of a structured projection view. This project represents the dashboard I always wished my teams had access to and is therefore strongly grounded in real operational use cases.
 
