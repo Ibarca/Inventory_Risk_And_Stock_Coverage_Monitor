@@ -124,7 +124,7 @@ This approach keeps business logic centralized, version-controlled, and easy to 
 ---
 
 
-##📈 Output & Lookr Studio integration
+## 📈 Output & Lookr Studio integration
 
 The final output of this pipeline is a fully materialized, analysis-ready table that can be directly imported into Looker Studio.
 
@@ -140,18 +140,24 @@ This approach also ensures that no heavy or complex computations are performed a
 ---
 
 
-##📊 Final Dashboard
+## 📊 Final Dashboard
 
 The dashboard is designed to aggregate metrics only where this adds decision-making value. SKU-level indicators such as stockout risk and projected stockout date are inherently item-specific and are therefore shown only when analyzing individual SKUs.
+
+![468B8BEA-B60C-48E5-9D5C-110EA238128C_4_5005_c](https://github.com/user-attachments/assets/49ff27c2-a7f6-4a60-a65f-7f4947a1dbcd)
+
 
 When multiple SKUs are selected, reach in weeks is displayed as an average to provide a high-level view of inventory coverage. SKUs classified as dead stock are excluded from this calculation, as they would disproportionately skew the results and reduce interpretability.
 
 Projected service level is also presented as an average and should be used as a directional indicator rather than a standalone KPI. For more meaningful insights, it is recommended to analyze this metric in combination with business-relevant filters such as ABC class or stockout risk, ensuring that focus remains on SKUs with the highest commercial impact.
 
+![DD66C007-F4C0-4378-9025-33E99CA4EA0C](https://github.com/user-attachments/assets/3fbe9fcf-1b83-4fbe-ac15-fca109d84b09)
+
+
 ---
 
 
-##🗂️ Repository structure
+## 🗂️ Repository structure
 
 /sql
 inventory_projection.sql
@@ -164,14 +170,17 @@ README.md
 ---
 
 
-##🧪 Data note
+## 🧪 Data note
 
-The data used in this repository may be synthetic or anonymized. The goal of this project is to demonstrate analytical design, SQL quality, and real-world inventory logic, not to expose proprietary information.
+All data used in this project is fully synthetic and has been generated to simulate real-world inventory and supply-chain scenarios as closely as possible. The objective of this repository is to showcase analytical design, SQL quality, and robust inventory logic rather than to expose or rely on proprietary or sensitive business data.
 
+It is important to note that the dashboard is based on static data, and the underlying SQL queries reference fixed dates. In a real production environment, these calculations would be driven by dynamic dates and automatically recalculated as time progresses. This adjustment is straightforward and does not affect the core logic of the model.
+
+Demand forecasting in this project is based on average sales from the previous year, rather than a full seasonal forecasting model. This choice was made deliberately to keep the focus on inventory projection mechanics and decision-oriented insights. That said, incorporating a seasonality-aware forecasting approach would be a natural and easily implementable extension of the current model.
 ---
 
 
-##👥 Intended audience
+## 👥 Intended audience
 
 • Category Managers
 • Supply Chain and Inventory Planners
