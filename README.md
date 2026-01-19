@@ -20,7 +20,7 @@ The query produces a weekly, ISO-calendar inventory projection at SKU level, app
 
 • Demand projections based on historical sales velocity: Demand is derived from average sales velocities from the previous year; this logic can easily be replaced by more advanced forecasting techniques, which are explored in a separate project
 
-• Projected service level over a forward-looking horizon: The dashboard displays the expected service level over the next six months based on projected inventory availability. Since last orders are expected to arrive between 6 and 7 months from the initial date, 6 months is considered a reasonable time horizon to measure service.
+• Projected service level over a forward-looking horizon: The dashboard displays the expected service level over the next six months based on projected inventory availability. Since last orders are expected to arrive up to 6 or 7 months from the initial date, 6 months is considered a reasonable time horizon to measure service.
 
 • First expected stockout date and reach in weeks: Allowing management to assess the severity and urgency of potential stockouts and respond in time
 
