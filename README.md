@@ -62,9 +62,15 @@ The initial goal was to build a daily inventory projection. However, at SKU scal
 The query integrates the following datasets:
 
 • SKU master data (category, brand, supplier, unit cost)
+
+• AVG sales price per SKU, the basis for revenue calculation
+
 • Historical daily sales data (used for demand and revenue estimation)
+
 • Inventory snapshot at the start of the projection period
+
 • Incoming purchase orders with expected delivery dates
+
 • ISO-week calendar generated directly in SQL for the projection horizon
 
 <img width="1536" height="1024" alt="Inventory projection data flow diagram (1)" src="https://github.com/user-attachments/assets/6824169b-e469-4511-91b1-a9e8398ad571" />
