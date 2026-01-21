@@ -4,7 +4,7 @@ This project delivers a production-ready, SKU-level inventory projection engine 
 
 It produces a weekly, ISO-calendar-aligned inventory forecast with a true stock floor, forward-looking service level, stockout risk, and ABC prioritization. This enables category and Supply Chain teams to proactively manage replenishment decisions weeks in advance.
 
-• Why this matters
+Why this matters?  
 Most inventory dashboards show what happened. This model shows what will happen if no action is taken, which is the difference between reporting and decision support.
 
 During my experience working across multiple category management teams, I repeatedly observed a lack of reliable, forward-looking inventory visibility at SKU level. This often resulted in avoidable stockouts caused not by missing data, but by the absence of a structured projection view. This project represents the inventory projection dashboard I always wished my teams had access to: a forward-looking, SKU-level view that enables proactive stockout prevention instead of reactive firefighting. You can interact with the dashboard [here](https://lookerstudio.google.com/u/0/reporting/14236fbd-f232-4ee4-8d26-3522b691ed32/page/tEnnC).
