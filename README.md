@@ -134,7 +134,7 @@ This approach keeps business logic centralized, version-controlled, and easy to 
 ---
 
 
-## Output & Lookr Studio integration
+## Output & Looker Studio integration
 
 The final output of this pipeline is a fully materialized, analysis-ready table that can be directly imported into Looker Studio.
 
