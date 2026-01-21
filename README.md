@@ -1,10 +1,13 @@
 # Inventory Risk & Stock Coverage Monitor – ( BigQuery + SQL + Looker Studio)
 
-During my experience working across multiple category management teams, I repeatedly observed a lack of reliable, forward-looking inventory visibility at SKU level. This often resulted in avoidable stockouts caused not by missing data, but by the absence of a structured projection view. This project represents the dashboard I always wished me and my teams had access to and is therefore strongly grounded in real operational use cases. You can interact with the dashboard [here](https://lookerstudio.google.com/u/0/reporting/14236fbd-f232-4ee4-8d26-3522b691ed32/page/tEnnC).
+This project delivers a production-ready, SKU-level inventory projection engine built entirely in BigQuery SQL and visualized in Looker Studio. 
 
-This repository contains a production-ready BigQuery SQL query that powers an end-to-end Inventory Projection Dashboard. The query integrates historical sales, inventory snapshots, incoming purchase orders, and calendar logic into a single analytical dataset designed for inventory risk assessment, service-level forecasting, and SKU prioritization.
+It produces a weekly, ISO-calendar-aligned inventory forecast with a true stock floor, forward-looking service level, stockout risk, and ABC prioritization. This enables category and Supply Chain teams to proactively manage replenishment decisions weeks in advance.
 
-The dashboard is built for Category Management, Supply Chain, and Operations teams, enabling scalable, weekly, SKU-level decision making based on consistent and transparent data logic.
+• Why this matters
+Most inventory dashboards show what happened. This model shows what will happen if no action is taken, which is the difference between reporting and decision support.
+
+During my experience working across multiple category management teams, I repeatedly observed a lack of reliable, forward-looking inventory visibility at SKU level. This often resulted in avoidable stockouts caused not by missing data, but by the absence of a structured projection view. This project represents the inventory projection dashboard I always wished my teams had access to: a forward-looking, SKU-level view that enables proactive stockout prevention instead of reactive firefighting. You can interact with the dashboard [here](https://lookerstudio.google.com/u/0/reporting/14236fbd-f232-4ee4-8d26-3522b691ed32/page/tEnnC).
 
 <img width="1284" height="709" alt="Screenshot 2026-01-16 at 12 19 59" src="https://github.com/user-attachments/assets/719e66c6-4315-49d1-bb89-27cb622f8d9c" />
 
@@ -14,7 +17,7 @@ The dashboard is built for Category Management, Supply Chain, and Operations tea
 
 The query produces a weekly, ISO-calendar inventory projection at SKU level, applying a true stock floor that never allows inventory to drop below zero. The results are enriched with multiple analytical layers designed to support proactive inventory management:
 
-• Projected inventory units and value over time: Enabling early detection of upcoming stockouts and timely corrective actions, curcial for the manager to preventibly react on time
+• Projected inventory units and value over time: Enabling early detection of upcoming stockouts and timely corrective actions, crucial for the manager to proactively react on time
 
 • Inbound inventory visibility and valuation: Providing an immediate overview of open purchase orders per SKU, both in units and monetary value
 
@@ -24,7 +27,7 @@ The query produces a weekly, ISO-calendar inventory projection at SKU level, app
 
 • First expected stockout date and reach in weeks: Allowing management to assess the severity and urgency of potential stockouts and respond in time
 
-• ABC classification based on revenue contribution: SKUs are ranked by prior-year revenue and segmented using Pareto-based ABC classification to support effective prioritization. The Paretto logic used is 40-40-20
+• ABC classification based on revenue contribution: SKUs are ranked by prior-year revenue and segmented using Pareto-based ABC classification to support effective prioritization. The Pareto logic used is 40-40-20
 
 • Stockout risk and sales velocity segmentation: SKUs are grouped into clear risk and velocity buckets, making it easy to identify items at stockout risk as well as dead or slow-moving inventory
 
