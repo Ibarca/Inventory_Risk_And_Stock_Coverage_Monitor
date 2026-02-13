@@ -179,8 +179,11 @@ Demand forecasting in this project is based on average sales from the previous y
 ## Intended audience
 
 • Category Managers
+
 • Supply Chain and Inventory Planners
+
 • BI and Data Analytics teams
+
 • Hiring managers reviewing analytics portfolios
 
 ---
