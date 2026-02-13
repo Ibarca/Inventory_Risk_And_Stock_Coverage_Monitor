@@ -52,7 +52,6 @@ The resulting dataset is consumed directly by Looker Studio, which render the in
 • Segment assortment by sales velocity and risk
 
 
-This logic has been implemented and refined in real business environments and is designed to handle **thousands of SKUs efficiently**.
 
 ---
 
