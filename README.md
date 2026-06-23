@@ -194,14 +194,6 @@ If you’d like to discuss this project, analytics methodologies, or potential c
 Email: ibarreirocanda@gmail.com  
 LinkedIn: https://www.linkedin.com/in/yago-b-35582644/
 
----
-## 💖 Support & Donations
 
-If you find this project useful and would like to support its continued development, you can do so via a donation.
-Your support helps me invest more time in building, maintaining, and extending data analytics projects like this one.
-
-Donations are entirely optional, but always appreciated 🙏
-
-☕ Buy Me a Coffee: https://buymeacoffee.com/ibarca
 
 
